@@ -2,6 +2,7 @@
 package cacheGo
 
 import (
+	"Cache/pkg/singleflight"
 	"fmt"
 	"log"
 	"sync"
@@ -13,6 +14,7 @@ type Group struct {
 	getter    Getter //缓存未命中时获取原数据的回调
 	mainCache cache  //并发缓存
 	peers     PeerPicker
+	loader    *singleflight.Group //使用singleflight来保证每个键只获取一次
 }
 
 var (
@@ -34,6 +36,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		mainCache: cache{cacheBytes: cacheBytes},
+		loader:    &singleflight.Group{},
 	}
 	groups[name] = g
 	return g
@@ -64,15 +67,22 @@ func (g *Group) Get(key string) (ByteView, error) {
 
 //load load调用getLocally（分布式场景下会调用getFromPeer 从其他节点获取）
 func (g *Group) load(key string) (value ByteView, err error) {
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			if value, err = g.getFromPeer(peer, key); err == nil {
-				return value, nil
+	//不管并发调用者的数量 每个键只使用一次
+	viewi, err := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				if value, err = g.getFromPeer(peer, key); err == nil {
+					return value, nil
+				}
+				log.Println("[GeeCache]failed to get from peer", err)
 			}
-			log.Println("[GeeCache] failed to get from peer", err)
 		}
+		return g.getLocally(key)
+	})
+	if err == nil {
+		return viewi.(ByteView), nil
 	}
-	return g.getLocally(key)
+	return
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
