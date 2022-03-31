@@ -1,4 +1,4 @@
-package Cache
+package cacheGo
 
 //ByteView 拥有一个不可变的字节视图
 type ByteView struct {

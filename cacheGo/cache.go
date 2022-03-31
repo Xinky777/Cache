@@ -1,9 +1,9 @@
-package Cache
+package cacheGo
 
 //并发控制
 
 import (
-	"Cache/LRU"
+	"Cache/pkg/LRU"
 	"sync"
 )
 
