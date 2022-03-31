@@ -1,5 +1,5 @@
 // Package Cache 负责与外部交互，控制缓存存储和获取的主流程
-package Cache
+package cacheGo
 
 import (
 	"fmt"
@@ -12,6 +12,7 @@ type Group struct {
 	name      string //每个group拥有唯一的名称 name
 	getter    Getter //缓存未命中时获取原数据的回调
 	mainCache cache  //并发缓存
+	peers     PeerPicker
 }
 
 var (
@@ -63,7 +64,23 @@ func (g *Group) Get(key string) (ByteView, error) {
 
 //load load调用getLocally（分布式场景下会调用getFromPeer 从其他节点获取）
 func (g *Group) load(key string) (value ByteView, err error) {
+	if g.peers != nil {
+		if peer, ok := g.peers.PickPeer(key); ok {
+			if value, err = g.getFromPeer(peer, key); err == nil {
+				return value, nil
+			}
+			log.Println("[GeeCache] failed to get from peer", err)
+		}
+	}
 	return g.getLocally(key)
+}
+
+func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	bytes, err := peer.Get(g.name, key)
+	if err != nil {
+		return ByteView{}, err
+	}
+	return ByteView{b: bytes}, nil
 }
 
 //getLocally 调用用户回调函数g.getter.Get()获取源数据 并且将其利用populateCache方法添加到缓存mainCache中
@@ -80,6 +97,14 @@ func (g *Group) getLocally(key string) (ByteView, error) {
 //populateCache 将源数据添加到缓存mainCache中
 func (g *Group) populateCache(key string, value ByteView) {
 	g.mainCache.add(key, value)
+}
+
+// RegisterPeers 注册一个PeerPicker用于选择远程对等点
+//将实现了PeerPicker借口的HTTPPool注入到Group中
+func (g *Group) RegisterPeers(peers PeerPicker) {
+	if g.peers != nil {
+		panic("RegisterPeerPicker called more than once")
+	}
 }
 
 //Getter 为键加载数据
