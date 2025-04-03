@@ -14,6 +14,7 @@ var db = map[string]string{
 	"Sam":  "567",
 }
 
+// 缓存未命中 -> db取值
 func createGroup() *cacheGo.Group {
 	return cacheGo.NewGroup("scores", 2<<10, cacheGo.GetterFunc(
 		func(key string) ([]byte, error) {
@@ -25,9 +26,9 @@ func createGroup() *cacheGo.Group {
 		}))
 }
 
-//startCacheServer 启动缓存服务器
-//用来启动缓存服务器：创建 HTTPPool，添加节点信息
-//注册到 gee 中，启动 HTTP 服务（共3个端口，8001/8002/8003），用户不感知。
+// startCacheServer 启动缓存服务器
+// 用来启动缓存服务器：创建 HTTPPool，添加节点信息
+// 注册到 gee 中，启动 HTTP 服务（共3个端口，8001/8002/8003），用户不感知。
 func startCacheServer(addr string, addrs []string, gee *cacheGo.Group) {
 	peers := cacheGo.NewHTTPPool(addr)
 	peers.Set(addrs...)

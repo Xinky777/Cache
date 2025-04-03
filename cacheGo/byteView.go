@@ -15,6 +15,7 @@ func (v ByteView) ByteSlice() []byte {
 	return cloneBytes(v.b)
 }
 
+//深拷贝
 func cloneBytes(b []byte) []byte {
 	c := make([]byte, len(b))
 	copy(c, b)
